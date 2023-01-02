@@ -1,3 +1,4 @@
+Copy code
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -7,77 +8,92 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 
+// Définition d'un énumération pour représenter les types de tokens
 typedef enum
 {
-    MOT,
-    TUB,
-    INF,
-    SUP,
-    SPP,
-    NL,
-    FIN
+    MOT,    // Mot ou chaîne de caractères entre guillemets
+    TUB,    // Opérateur de redirection de sortie '|'
+    INF,    // Opérateur de redirection d'entrée '<'
+    SUP,    // Opérateur de redirection de sortie '>'
+    SPP,    // Opérateur de redirection de sortie '>>'
+    NL,     // Fin de ligne
+    FIN     // Fin de fichier
 } LEX;
 
+// Fonction qui lit un caractère à la fois depuis l'entrée standard et utilise un automate à états finis
+// pour identifier les différents types de tokens
 static LEX getlex(char *mot)
 {
+    // États de l'automate à états finis
     enum
     {
-        Neutre,
-        Spp,
-        Equote,
-        Emot
-    } etat = Neutre;
+        Neutre,   // État initial
+        Spp,      // État intermédiaire pour identifier l'opérateur de redirection '>>'
+        Equote,   // État intermédiaire pour identifier les chaînes de caractères entre guillemets
+        Emot      // État intermédiaire pour identifier les mots simples (non entre guillemets)
+    } etat = Neutre; 
 
 
-    int c;
-    char *w;
-    w = mot;
-    while ((c = getchar()) != EOF)
+    int c;             // Variable pour stocker le caractère lu
+    char *w;           // Pointeur vers la chaîne de caractères où stocker le mot en cours de lecture
+    w = mot;           // Initialisation du pointeur
+    // Boucle qui lit un caractère à la fois depuis l'entrée standard
+    
+    int c;             // Variable pour stocker le caractère lu
+char *w;           // Pointeur vers la chaîne de caractères où stocker le mot en cours de lecture
+w = mot;           // Initialisation du pointeur
+// Boucle qui lit un caractère à la fois depuis l'entrée standard
+while ((c = getchar()) != EOF)
+{
+    // Selon l'état de l'automate, on traite le caractère de manière différente
+    switch (etat)
     {
-        switch (etat)
+    case Neutre:
+        // Si on est dans l'état initial, on vérifie le caractère courant pour identifier le type de token
+        switch (c)
         {
-        case Neutre:
-            switch (c)
-            {
-            case '<':
-                return (INF);
-            case '>':
-                etat = Spp;
-                continue;
-            case '|':
-                return (TUB);
-            case '"':
-                etat = Equote;
-                continue;
-            case ' ':
-            case '\t':
-                continue;
-            case '\n':
-                return (NL);
-            default:
-                etat = Emot;
-                *w++ = c;
-                continue;
-            }
+        case '<':
+            return (INF);   // Si c'est un '<', on retourne le type INF (opérateur de redirection d'entrée)
+        case '>':
+            etat = Spp;    // Si c'est un '>', on passe à l'état intermédiaire Spp
+            continue;       // On continue la boucle sans exécuter la suite
+        case '|':
+            return (TUB);   // Si c'est un '|', on retourne le type TUB (opérateur de redirection de sortie)
+        case '"':
+            etat = Equote; // Si c'est un '"', on passe à l'état intermédiaire Equote
+            continue;       // On continue la boucle sans exécuter la suite
+        case ' ':
+        case '\t':
+            continue;       // Si c'est un espace ou une tabulation, on ignore et on continue la boucle
+        case '\n':
+            return (NL);    // Si c'est un fin de ligne, on retourne le type NL
+        default:
+            etat = Emot;   // Sinon, c'est un mot simple, on passe à l'état intermédiaire Emot
+            *w++ = c;      // On ajoute le caractère courant au mot en cours de lecture
+            continue;       // On continue la boucle sans exécuter la suite
+        }
         case Spp:
+            // Si on est dans l'état intermédiaire Spp, on vérifie si le caractère courant est un second '>'
             if (c == '>')
-                return (SPP);
-            ungetc(c, stdin);
+                return (SPP);   // Si c'est le cas, cela signifie que l'on a lu l'opérateur de redirection '>>', on retourne le type SPP
+            ungetc(c, stdin);   // Sinon, on remet le caractère courant dans l'entrée standard et on retourne le type SUP (opérateur de redirection de sortie)
             return (SUP);
         case Equote:
+            // Si on est dans l'état intermédiaire Equote, on est en train de lire une chaîne de caractères entre guillemets
             switch (c)
             {
-            case '\\':
-                *w++ = c;
-                continue;
+            case '\':
+            *w++ = c; // Si le caractère courant est un '', on l'ajoute au mot en cours de lecture
+            continue; // On continue la boucle sans exécuter la suite
             case '"':
-                *w = '\0';
-                return (MOT);
+            *w = '\0'; // Si c'est un second guillemet, cela signifie que la chaîne de caractères est terminée, on ajoute un caractère de fin de chaîne
+            return (MOT); // On retourne le type MOT
             default:
-                *w++ = c;
-                continue;
+            *w++ = c; // Sinon, on ajoute le caractère courant au mot en cours de lecture
+            continue; // On continue la boucle sans exécuter la suite
             }
-        case Emot:
+            case Emot:
+            // Si on est dans l'état intermédiaire Emot, on est en train de lire un mot simple
             switch (c)
             {
             case '|':
@@ -86,16 +102,20 @@ static LEX getlex(char *mot)
             case ' ':
             case '\t':
             case '\n':
-                ungetc(c, stdin);
-                *w = '\0';
-                return (MOT);
-            default:
-                *w++ = c;
-                continue;
-            }
-        }
-    }
-    return (FIN);
+            // Si on lit un caractère spécial (opérateur de redirection, espace, tabulation ou fin de ligne), cela signifie que le mot est terminé
+            ungetc(c, stdin); // On remet le caract
+                ère courant dans l'entrée standard
+*w = '\0'; // On ajoute un caractère de fin de chaîne au mot en cours de lecture
+return (MOT); // On retourne le type MOT
+default:
+*w++ = c; // Sinon, on ajoute le caractère courant au mot en cours de lecture
+continue; // On continue la boucle sans exécuter la suite
+}
+}
+}
+// Si on sort de la boucle while, cela signifie qu'on a atteint la fin du flux d'entrée, on retourne le type FIN
+return (FIN);
+}
 }
 
 
