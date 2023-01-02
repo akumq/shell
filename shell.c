@@ -229,14 +229,19 @@ int main(int argc, char *argv[])
         case NL:
 
             if (isRedirection){
-                int fd;
                 char *filePath = strcat(strcat(path,"/"),arg[pos]);
                 printf("%s \n",filePath);
-                if (fd = open(filePath, O_WRONLY | O_CREAT, 0666) < 0){
+
+                int fd = open(filePath, O_WRONLY | O_CREAT, 0666);
+                if (fd < 0){
                     printf("Erreur de file Descriptor\n");
                     exit(1);
                 }
-                dup2(fd,STDOUT_FILENO);
+
+                if (dup2(fd, STDOUT_FILENO) < 0){
+                    printf("Erreur de duplication de descripteur de fichier\n");
+                    exit(1);
+                }
             
             }
 
