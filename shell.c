@@ -125,6 +125,44 @@ void commande(LEX type,char *arg[],int nb_arg){
 
 }
 
+void exec_fileappend(char *arg[],int nb_arg,char file[]){
+    char path[PATH_MAX];
+    int pid,status;
+
+    int original_stdout = dup(STDOUT_FILENO);
+    getcwd(path,sizeof(path));
+    switch (pid = fork())
+    {
+    case -1:
+        perror("Erreur de Fork");
+        break;
+    case 0:
+        char *filePath = malloc(strlen(path) + strlen(file) + 2);
+        sprintf(filePath, "%s/%s", path, file);
+        int fd;
+        printf("%s \n",filePath);
+        fd = open(filePath, O_WRONLY | O_CREAT | O_APPEND, 0666);
+        if (fd < 0){
+            printf("Erreur de file Descriptor\n");
+            exit(1);
+        }
+        if(dup2(fd,STDOUT_FILENO) < 0){
+            printf("Erreur de duplication de descripteur");
+            exit(1);
+        }
+        execvp(arg[0],arg);
+        if(dup2(original_stdout,STDOUT_FILENO) < 0){
+            printf("Erreur de restauration de la sortie standard\n");
+            exit(1);
+       }
+        break;
+    default:
+        wait(&status);
+        break;
+    }
+}
+
+
 
 void exec_file(char *arg[],int nb_arg,char file[]){
     char path[PATH_MAX];
@@ -161,9 +199,7 @@ void exec_file(char *arg[],int nb_arg,char file[]){
         wait(&status);
         break;
     }
-    free(filePath);
 }
-
 
 int execpipe (char ** argv1, char ** argv2) {
     int fds[2];
@@ -215,6 +251,7 @@ int main(int argc, char *argv[])
 
     bool isPipe = false;
     bool isRedirection = false;
+    bool isAppend = false;
     int pos;
 
     const char *lexeme_names[] = {
@@ -259,23 +296,13 @@ int main(int argc, char *argv[])
         case INF:
             printf("REDIRECTION ENTREE\n");
             break;
-        case SUP:
-            
+        case SUP:           
             isRedirection = true;
             pos = nb_arg;
-            //printf("%s \n",arg[nb_arg-1]);
-            //char *filePath = strcat(strcat(path,"/"),arg[nb_arg]);
-            // printf("%s \n",filePath);
-            // if (fd = open(filePath, O_WRONLY | O_CREAT, 0666) < 0){
-            //     printf("Erreur de file Descriptor\n");
-            //     exit(1);
-            // }
-            // dup2(fd,1);
-
-            printf("REDIRECTION SORTIE\n");
             break;
         case SPP:
-            printf("REDIRECTION AJOUT\n");
+            isAppend = true;
+            pos = nb_arg;
             break;
         case NL:
 
@@ -287,6 +314,13 @@ int main(int argc, char *argv[])
                 arg[pos] = NULL;
                 nb_arg -= 1;
                 exec_file(arg,nb_arg,file);
+                isRedirection = false;
+            }else if(isAppend){
+                char *file = arg[pos];
+                arg[pos] = NULL;
+                nb_arg -= 1;
+                exec_fileappend(arg,nb_arg,file);
+                isAppend = false;
             }else{
                 printf("%s \n",lexeme_names[motLex]);
                 commande(motLex,arg,nb_arg);
@@ -295,8 +329,6 @@ int main(int argc, char *argv[])
                 free(arg[i]);
                 arg[i] = NULL;
             }
-
-
             nb_arg = 0;
             printf("\033[4;33m[%s]$\033[0m ",getcwd(path,sizeof(path)));
             break;
