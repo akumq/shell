@@ -124,6 +124,8 @@ void commande(LEX type,char *arg[],int nb_arg){
     }
 
 }
+
+
 void exec_file(char *arg[],int nb_arg,char file[]){
     char path[PATH_MAX];
     int pid,status;
@@ -136,8 +138,9 @@ void exec_file(char *arg[],int nb_arg,char file[]){
         perror("Erreur de Fork");
         break;
     case 0:
+        char *filePath = malloc(strlen(path) + strlen(file) + 2);
+        sprintf(filePath, "%s/%s", path, file);
         int fd;
-        char *filePath = strcat(strcat(path,"/"),file);
         printf("%s \n",filePath);
         fd = open(filePath, O_WRONLY | O_CREAT, 0666);
         if (fd < 0){
@@ -150,16 +153,15 @@ void exec_file(char *arg[],int nb_arg,char file[]){
         }
         execvp(arg[0],arg);
         if(dup2(original_stdout,STDOUT_FILENO) < 0){
-            printf("Erreur de duplication de descripteur");
+            printf("Erreur de restauration de la sortie standard\n");
             exit(1);
-        }
+       }
         break;
     default:
-        waitpid(pid,&status, WUNTRACED | WCONTINUED);
-
+        wait(&status);
         break;
     }
-
+    free(filePath);
 }
 
 
