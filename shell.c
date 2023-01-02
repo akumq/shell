@@ -124,6 +124,44 @@ void commande(LEX type,char *arg[],int nb_arg){
     }
 
 }
+void exec_file(char *arg[],int nb_arg,char file[]){
+    char path[PATH_MAX];
+    int pid,status;
+
+    int original_stdout = dup(STDOUT_FILENO);
+    getcwd(path,sizeof(path));
+    switch (pid = fork())
+    {
+    case -1:
+        perror("Erreur de Fork");
+        break;
+    case 0:
+        int fd;
+        char *filePath = strcat(strcat(path,"/"),file);
+        printf("%s \n",filePath);
+        fd = open(filePath, O_WRONLY | O_CREAT, 0666);
+        if (fd < 0){
+            printf("Erreur de file Descriptor\n");
+            exit(1);
+        }
+        if(dup2(fd,STDOUT_FILENO) < 0){
+            printf("Erreur de duplication de descripteur");
+            exit(1);
+        }
+        execvp(arg[0],arg);
+        if(dup2(original_stdout,STDOUT_FILENO) < 0){
+            printf("Erreur de duplication de descripteur");
+            exit(1);
+        }
+        break;
+    default:
+        waitpid(pid,&status, WUNTRACED | WCONTINUED);
+
+        break;
+    }
+
+}
+
 
 int execpipe (char ** argv1, char ** argv2) {
     int fds[2];
@@ -177,6 +215,17 @@ int main(int argc, char *argv[])
     bool isRedirection = false;
     int pos;
 
+    const char *lexeme_names[] = {
+        "MOT",
+        "TUB",
+        "INF",
+        "SUP",
+        "SPP",
+        "NL",
+        "FIN",
+    };
+
+
     getcwd(path,sizeof(path));
     //printf("[%s]$ ",path);
     
@@ -228,27 +277,16 @@ int main(int argc, char *argv[])
             break;
         case NL:
 
-            if (isRedirection){
-                char *filePath = strcat(strcat(path,"/"),arg[pos]);
-                printf("%s \n",filePath);
-
-                int fd = open(filePath, O_WRONLY | O_CREAT, 0666);
-                if (fd < 0){
-                    printf("Erreur de file Descriptor\n");
-                    exit(1);
-                }
-
-                if (dup2(fd, STDOUT_FILENO) < 0){
-                    printf("Erreur de duplication de descripteur de fichier\n");
-                    exit(1);
-                }
-            
-            }
-
             if (isPipe){
                 execpipe(arg1,arg);
                 isPipe = false;
+            }else if (isRedirection){
+                char *file = arg[pos];
+                arg[pos] = NULL;
+                nb_arg -= 1;
+                exec_file(arg,nb_arg,file);
             }else{
+                printf("%s \n",lexeme_names[motLex]);
                 commande(motLex,arg,nb_arg);
             }
             for (int i = 0; i < 200; i++) {
